@@ -209,6 +209,10 @@ let m = {}
 let k = {}
 function key(e) {
 	k[e.key] = e.type == "keydown"
+	if (e.type == "keyup") {
+		if (e.key == "w" || e.key == "s") stick[1] = 0
+		if (e.key == "a" || e.key == "d") stick[0] = 0
+	}
 	/*if (e.key.toLowerCase().includes("shift")) {
 		
 	}*/
@@ -216,11 +220,26 @@ function key(e) {
 addEventListener("keydown",key)
 addEventListener("keyup",key)
 
+canvas.addEventListener("click", async () => {
+  if(!document.pointerLockElement) {
+    try {
+      await canvas.requestPointerLock({
+        unadjustedMovement: true,
+      });
+    } catch (error) {
+      if (error.name === "NotSupportedError") {
+        // Some platforms may not support unadjusted movement.
+        await canvas.requestPointerLock();
+      } else {
+        throw error;
+      }
+    }
+  }
+});
+
 addEventListener("pointerdown",function(e) {
 	//camera.position.set(e.offsetX/100,0,e.offsetY/100)
-	async () => {
-  		await canvas.requestPointerLock();
-	}
+	//renderer.domElement.requestPointerLock();
 	let loc = [e.offsetX/over.offsetWidth*over.width,e.offsetY/over.offsetHeight*over.height]
 	if (e.pointerType == "touch") {
 		if (Math.hypot(loc[0]-150,loc[1]-850) <= 150) {
@@ -312,10 +331,10 @@ function animate( time ) {
   //cube.rotation.y = time / 1000;}
 	/*ceil.rotation.set(time/1000,0,0)
 	debug.innerHTML = time/1000*/
-	if (k["w"]) stick[0]=-150
-	if (k["a"]) stick[1]=-150
-	if (k["s"]) stick[0]=150
-	if (k["d"]) stick[1]=150
+	if (k["w"]) stick[1]=-150
+	if (k["a"]) stick[0]=-150
+	if (k["s"]) stick[1]=150
+	if (k["d"]) stick[0]=150
 	if (k["Shift"] != undefined) player.sprint.state = k["Shift"]
 	if (k["Control"] != undefined) player.sneak.state = k["Control"]
 	
