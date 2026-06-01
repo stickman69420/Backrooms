@@ -220,16 +220,16 @@ function key(e) {
 addEventListener("keydown",key)
 addEventListener("keyup",key)
 
-canvas.addEventListener("click", async () => {
+renderer.domElement.addEventListener("click", async () => {
   if(!document.pointerLockElement) {
     try {
-      await canvas.requestPointerLock({
+      await renderer.domElement.requestPointerLock({
         unadjustedMovement: true,
       });
     } catch (error) {
       if (error.name === "NotSupportedError") {
         // Some platforms may not support unadjusted movement.
-        await canvas.requestPointerLock();
+        await renderer.domElement.requestPointerLock();
       } else {
         throw error;
       }
