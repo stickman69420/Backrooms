@@ -1,18 +1,65 @@
 import ("https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.module.js").then((THREE) => {
-//import ('https://cdn.jsdelivr.net/npm/three@0.149.0/examples/jsm/loaders/GLTFLoader.js').then((GLTF) => {
+import ('https://cdn.jsdelivr.net/npm/three@0.149.0/examples/jsm/loaders/GLTFLoader.js').then((GLTF) => {
+//import ('https://cdn.jsdelivr.net/npm/three@0.184.0/examples/jsm/physics/RapierPhysics.js').then((Phys) => {
+//Phys.RapierPhysics().then((physics) => {
 //import (/*"https://cdn.jsdelivr.net/npm/three@0.149.0/examples/jsm/controls/OrbitControls.js"*/"https://cdn.jsdelivr.net/npm/three@0.149.0/examples/jsm/controls/DragControls.js"/*"https://cdn.jsdelivr.net/npm/three@0.149.0/examples/jsm/controls/FirstPersonControls.js"*/).then((DC) => {
 
 over.context = over.getContext("2d")
 
 const scene = new THREE.Scene();
-scene.fog = new THREE.Fog(0xD3D371, 150, 250);
+//physics.addScene(scene)
+const loader3d = new GLTF.GLTFLoader();
+function load3D(folder) {
+	//alert('./models/'+folder+'/model.gltf')
+	return new Promise((resolve,reject) => {
+		loader3d.load('./models/'+folder+'/model.gltf', function (gltf) {
+			scene.add(gltf.scene);
+			resolve(gltf.scene)
+		}, undefined, function(error) {
+			alert(error.message);
+		});
+		reject
+	})
+}
+
+async function Item(type,x,y,z) {
+	const consts = items[type]
+	let t = await load3D(consts.folder)
+	t.position.set(x,y,z)
+	t.scale.set(...consts.scale)
+	t.itemType = type
+	return t
+}
+
+scene.fog = new THREE.Fog(0xD3D371, 100, 200);
 const camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 );
-let player = {"position":{"x":0,"y":0,"z":0},"rotation":{"x":0,"y":0,"z":0},"size":{"x":1,"y":5,"z":1},"bob":{"time":0,"amt":0},"health":100,"energy":100,"enexp":100,"food":100,"water":100,"sprint":{"state":false,"toggle":false,"last":-500},"sneak":{"state":false,"toggle":false,"last":-500}}
+let player = {"position":{"x":0,"y":0,"z":0},"rotation":{"x":0,"y":0,"z":0},"size":{"x":1,"y":5,"z":1},"bob":{"time":0,"amt":0},"health":100,"energy":100,"enexp":100,"food":100,"water":100,"sprint":{"state":false,"toggle":false,"last":-500},"sneak":{"state":false,"toggle":false,"last":-500},"hands":[]}
 camera.rotation.order = "YXZ"
 let stick = [0,0]
 let plocation = [Infinity,Infinity]
 const dir = [[0,1],[1,0],[0,-1],[-1,0]]
 const bar = [["health","#FF0000","#AA0000"],["energy","#FFFF00","#AAAA00"],["food","#BB8800","#554400"],["water","#0000FF","#0000AA"]]
+const items = [{"folder":"Torch","scale":[0.05,0.05,0.05]}]
+
+/*const floorPhys = new THREE.Object3D();
+scene.add(floorPhys);
+physics.addHeightfield(floorPhys,2,2,[
+	-5,-5,-5,
+	-5,-5,-5,
+	-5,-5,-5
+],{"x":300,"y":1,"z":300})*/
+
+/*load3D("Torch").then((t) => {
+	//alert(JSON.stringify(t))
+	t.position.set(0,0,-10)
+	t.scale.set(0.05,0.05,0.05)
+	//physics.addMesh(t,5,0.05)
+})*/
+//Item(0,0,0,-10)
+
+/*Item ids
+	0 - Torch
+*/
 
 const map = {}
 const genSize = 21
@@ -27,6 +74,7 @@ for (let i=0;i<lightAm**2;i++) {
 	//light2.castShadow = false;
 	const tar = new THREE.Object3D();
 	tar.position.set(0,4,0)
+	//light2.visible = true
 	//light2.penumbra = 1
 	scene.add(light2);
 	scene.add(tar);
@@ -189,6 +237,7 @@ light.target = lookat
 light.penumbra/*phantasm*/ = 1
 light.angle = Math.PI/10
 light.distance = 100
+//light.visible = false
 //light.decay = 1000
 /*const helper = new THREE.DirectionalLightHelper( light, 5 );
 scene.add( helper );*/
@@ -219,6 +268,10 @@ function key(e) {
 }
 addEventListener("keydown",key)
 addEventListener("keyup",key)
+
+addEventListener("pointerlockchange", () => {
+    console.log("Pointer lock:", document.pointerLockElement);
+});
 
 renderer.domElement.addEventListener("click", async () => {
   if(!document.pointerLockElement) {
@@ -331,6 +384,9 @@ function animate( time ) {
   //cube.rotation.y = time / 1000;}
 	/*ceil.rotation.set(time/1000,0,0)
 	debug.innerHTML = time/1000*/
+	
+	light.visible = player.hands.includes(0)
+	
 	if (k["w"]) stick[1]=-150
 	if (k["a"]) stick[0]=-150
 	if (k["s"]) stick[1]=150
@@ -338,6 +394,8 @@ function animate( time ) {
 	if (k["Shift"] != undefined) player.sprint.state = k["Shift"]
 	if (k["Control"] != undefined) player.sneak.state = k["Control"]
 	
+	player.food -= 0.0004
+	player.water -= 0.0025
 	const samp = Math.hypot(...stick)
 	if (samp > player.enexp/2 && player.sneak.state) {
 		stick[0] = stick[0]/samp*player.enexp/2
@@ -354,9 +412,17 @@ function animate( time ) {
 	} else if (samp == 0) {
 		player.energy = Math.min(player.energy+0.24*player.enexp/100,player.enexp)
 		player.enexp = Math.min(player.enexp+0.00025*player.enexp*(player.energy == player.enexp ? 1.1 : 1),100)
+		if (player.energy < player.enexp || player.enexp < 100) {
+			player.food -= 0.0008
+			player.water -= 0.005
+		}
 	} else {
 		if (samp <= player.enexp/2) {
 			player.energy = Math.min(player.energy+0.12*player.enexp/100,player.enexp)
+			if (player.energy < player.enexp || player.enexp < 100) {
+				player.food -= 0.0008
+				player.water -= 0.005
+			}
 		}
 	}
 	stick[0] /= 1.5
@@ -386,6 +452,7 @@ function animate( time ) {
 	})
 	//ceilLights.position.set(30*Math.floor(camera.position.x/30)+15,4.9,30*Math.floor(camera.position.z/30)+15)
 	floor.position.set(30*Math.floor(player.position.x/30)-5,-5,30*Math.floor(player.position.z/30)-5)
+	//floorPhys.position.set(30*Math.floor(player.position.x/30)-5,-5,30*Math.floor(player.position.z/30)-5)
 	ceil.position.set(30*Math.floor(player.position.x/30)+15,4.9,30*Math.floor(player.position.z/30)+15)
 	
 	/*camera.position.x += stick[1]/150
@@ -596,11 +663,12 @@ function animate( time ) {
 		over.context.stroke()
 	}
 }
-/*})
+})
 .catch((err) => {
 	alert(err.message)
-})*/
+})
 }).catch((err) => {
 	alert(err.message)
 })
-//})
+/*})
+})*/
