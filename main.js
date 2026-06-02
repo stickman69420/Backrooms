@@ -6,6 +6,8 @@ import ('https://cdn.jsdelivr.net/npm/three@0.149.0/examples/jsm/loaders/GLTFLoa
 
 over.context = over.getContext("2d")
 
+const chromium = navigator.userAgentData && navigator.userAgentData.brands.some(data => data.brand == 'Chromium');
+
 const scene = new THREE.Scene();
 //physics.addScene(scene)
 const loader3d = new GLTF.GLTFLoader();
@@ -27,13 +29,21 @@ async function Item(type,x,y,z) {
 	let t = await load3D(consts.folder)
 	t.position.set(x,y,z)
 	t.scale.set(...consts.scale)
-	t.itemType = type
+	t.userData.itemType = type
+	t.userData.boundingBox = new THREE.Box3().setFromObject(t);
+	t.userData.velocity = {"x":0,"y":0,"z":0}
+	t.userData.isItem = true
 	return t
 }
 
+function rotDir(rot) {
+	return [cos(rot.y)*cos(rot.x),sin(rot.y)*cos(rot.x),sin(rot.x)]
+}
+
+let Items = []
 scene.fog = new THREE.Fog(0xD3D371, 100, 200);
 const camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 );
-let player = {"position":{"x":0,"y":0,"z":0},"rotation":{"x":0,"y":0,"z":0},"size":{"x":1,"y":5,"z":1},"bob":{"time":0,"amt":0},"health":100,"energy":100,"enexp":100,"food":100,"water":100,"sprint":{"state":false,"toggle":false,"last":-500},"sneak":{"state":false,"toggle":false,"last":-500},"hands":[]}
+let player = {"position":{"x":0,"y":0,"z":0},"rotation":{"x":0,"y":0,"z":0},"size":{"x":1,"y":5,"z":1},"bob":{"time":0,"amt":0},"health":100,"energy":100,"enexp":100,"food":100,"water":100,"sprint":{"state":false,"toggle":false,"last":-500},"sneak":{"state":false,"toggle":false,"last":-500},"hands":[],"see":new THREE.Raycaster(new THREE.Vector3(),new THREE.Vector3(0,0,-1))}
 camera.rotation.order = "YXZ"
 let stick = [0,0]
 let plocation = [Infinity,Infinity]
@@ -55,7 +65,11 @@ physics.addHeightfield(floorPhys,2,2,[
 	t.scale.set(0.05,0.05,0.05)
 	//physics.addMesh(t,5,0.05)
 })*/
-//Item(0,0,0,-10)
+Item(0,0,0,-10).then((it) => {
+	Items.push(it)
+	//debug.innerHTML = JSON.stringify(it)
+	//alert(Object.keys(it))
+})
 
 /*Item ids
 	0 - Torch
@@ -274,7 +288,6 @@ addEventListener("pointerlockchange", () => {
 });
 
 renderer.domElement.addEventListener("click", async () => {
-	console.log("click detected. Attempting pointer lock")
   if(!document.pointerLockElement) {
     try {
       await renderer.domElement.requestPointerLock({
@@ -333,6 +346,8 @@ addEventListener("pointermove",function(e) {
 	const pre = m[e.pointerId]
 	if (pre) {
 		let loc = [e.offsetX/over.offsetWidth*over.width,e.offsetY/over.offsetHeight*over.height]
+		//debug.innerHTML = e.movementX+","+e.movementY
+		let vel = [-e.movementX/renderer.domElement.offsetWidth/(chromium ? window.devicePixelRatio : 1),-e.movementY/renderer.domElement.offsetHeight/(chromium ? window.devicePixelRatio : 1)] //I hate chromium browsers why are they like this
 		if (/*e.pointerType == "touch" && (Math.hypot(loc[0]-150,loc[1]-850) <= 150)*/pre.stick) {
 			e.stick = true
 			stick = [loc[0]-150,loc[1]-850]
@@ -343,10 +358,10 @@ addEventListener("pointermove",function(e) {
 		} else if (pre.sneak) {
 			e.sneak = true
 		} else {
-			const hrot = ((pre.offsetX/renderer.domElement.offsetWidth)-(e.offsetX/renderer.domElement.offsetWidth))*Math.PI*10
+			const hrot = /*((pre.offsetX/renderer.domElement.offsetWidth)-(e.offsetX/renderer.domElement.offsetWidth))*/vel[0]*Math.PI*10
 			player.rotation.y += hrot
 			player.rotation.z += hrot
-			const vrot = ((pre.offsetY/renderer.domElement.offsetHeight)-(e.offsetY/renderer.domElement.offsetHeight))*Math.PI*2.5
+			const vrot = /*((pre.offsetY/renderer.domElement.offsetHeight)-(e.offsetY/renderer.domElement.offsetHeight))*/vel[1]*Math.PI*2.5
 			player.rotation.x = Math.min(Math.max(vrot+player.rotation.x,-Math.PI/2),Math.PI/2)
 			/*camera.rotation.x += Math.cos(camera.rotation.y)*vrot
 			camera.rotation.z += Math.sin(camera.rotation.y)*vrot*/
@@ -586,6 +601,28 @@ function animate( time ) {
 	player.bob.amt = Math.cos(player.bob.time/Math.PI/10)/3
 	camera.position.set(player.position.x,player.position.y+player.bob.amt,player.position.z)
 	camera.rotation.set(player.rotation.x,player.rotation.y,player.rotation.z)
+	
+	Items.forEach((e) => {
+		e.userData.velocity.y -= 9.81/60
+		for (const [key,value] of Object.entries(e.userData.velocity)) {
+			e.position[key] += value
+		}
+		e.position.y = Math.max(e.position.y,-5+(e.userData.boundingBox.max.y-e.userData.boundingBox.min.y)/2)
+		if (e.position.y == -5+(e.userData.boundingBox.max.y-e.userData.boundingBox.min.y)/2) {
+			e.userData.velocity.y = 0
+		}
+	})
+	
+	//debug.innerHTML = JSON.stringify(Items.map(i => i.userData))
+	
+	player.see.setFromCamera({"x":0,"y":0},camera)
+	//debug.innerHTML = JSON.stringify(player.see.intersectObjects(Items))
+	const rayRes = player.see.intersectObjects(Items.concat(cubes))
+	//debug.innerHTML += JSON.stringify(rayRes.map(i => i.object.parent.parent.userData))
+	if (rayRes[0] && (rayRes[0].object.parent ?? {}).parent && rayRes[0].object.parent.parent.userData.isItem) {
+		rayRes[0].object.parent.parent.userData.velocity.y = 1
+	}
+	
 	renderer.render( scene, camera );
 	/*const colled = (collAll() ?? {})
 	debug.innerHTML = (JSON.stringify(colled.size))+(JSON.stringify(colled.position))*/
