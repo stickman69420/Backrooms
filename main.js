@@ -274,6 +274,7 @@ addEventListener("pointerlockchange", () => {
 });
 
 renderer.domElement.addEventListener("click", async () => {
+	console.log("click detected. Attempting pointer lock")
   if(!document.pointerLockElement) {
     try {
       await renderer.domElement.requestPointerLock({
