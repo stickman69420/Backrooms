@@ -33,6 +33,16 @@ async function Item(type,x,y,z) {
 	t.userData.boundingBox = new THREE.Box3().setFromObject(t);
 	t.userData.velocity = {"x":0,"y":0,"z":0}
 	t.userData.isItem = true
+	t.traverse((y) => {
+		y.traverse((child) => {
+			if (child.isMesh) {
+				const wireframeGeom = new THREE.WireframeGeometry(child.geometry);
+				const wireframe = new THREE.LineSegments(wireframeGeom, wireframeMat);
+				child.add(wireframe);
+				wFrames.push(wireframe)
+			}
+		});
+	})
 	return t
 }
 
@@ -41,6 +51,7 @@ function rotDir(rot) {
 }
 
 let Items = []
+let wFrames = []
 scene.fog = new THREE.Fog(0xD3D371, 100, 200);
 const camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 );
 let player = {"position":{"x":0,"y":0,"z":0},"rotation":{"x":0,"y":0,"z":0},"size":{"x":1,"y":5,"z":1},"bob":{"time":0,"amt":0},"health":100,"energy":100,"enexp":100,"food":100,"water":100,"sprint":{"state":false,"toggle":false,"last":-500},"sneak":{"state":false,"toggle":false,"last":-500},"hands":[],"see":new THREE.Raycaster(new THREE.Vector3(),new THREE.Vector3(0,0,-1))}
@@ -50,6 +61,7 @@ let plocation = [Infinity,Infinity]
 const dir = [[0,1],[1,0],[0,-1],[-1,0]]
 const bar = [["health","#FF0000","#AA0000"],["energy","#FFFF00","#AAAA00"],["food","#BB8800","#554400"],["water","#0000FF","#0000AA"]]
 const items = [{"folder":"Torch","scale":[0.05,0.05,0.05]}]
+const wireframeMat = new THREE.LineBasicMaterial({ color: 0x000000 });
 
 /*const floorPhys = new THREE.Object3D();
 scene.add(floorPhys);
@@ -619,8 +631,43 @@ function animate( time ) {
 	//debug.innerHTML = JSON.stringify(player.see.intersectObjects(Items))
 	const rayRes = player.see.intersectObjects(Items.concat(cubes))
 	//debug.innerHTML += JSON.stringify(rayRes.map(i => i.object.parent.parent.userData))
-	if (rayRes[0] && (rayRes[0].object.parent ?? {}).parent && rayRes[0].object.parent.parent.userData.isItem) {
-		rayRes[0].object.parent.parent.userData.velocity.y = 1
+	/*while (wFrames.length > 0) {
+		let wF = wFrames.pop()
+		wF.geometry.dispose()
+		wF.material.dispose()
+		wF.parent.remove(wF)
+	}*/
+	wFrames.forEach((e) => {
+		e.visible = false
+	})
+	if (rayRes[0]) {
+		let par = rayRes[0].object
+		let parInd = 0
+		
+		while (par.parent.parent) { //prevent it from always selecting the scene
+			par = par.parent
+			parInd++
+		}
+		
+		if (par.userData.isItem) {
+			let iterlist = [par]
+			while (iterlist.length > 0) {
+				if (iterlist[0].children.length > 0) iterlist.push(...iterlist[0].children)
+				else {
+					iterlist[0].traverse((wf) => {
+						wf.visible = true
+					})
+				}
+				iterlist.splice(0,1)
+			}
+			/*par.traverse((y) => {
+				y.traverse((child) => {
+					child.traverse((wf) => {
+						wf.visible = true
+					})
+				});
+			});*/
+		}
 	}
 	
 	renderer.render( scene, camera );
