@@ -12,7 +12,7 @@ const scene = new THREE.Scene();
 //physics.addScene(scene)
 const loader3d = new GLTF.GLTFLoader();
 function load3D(folder) {
-	//al	ert('./models/'+folder+'/model.gltf')
+	//alert('./models/'+folder+'/model.gltf')
 	return new Promise((resolve,reject) => {
 		loader3d.load('./models/'+folder+'/model.gltf', function (gltf) {
 			//scene.add(gltf.scene);
@@ -23,6 +23,8 @@ function load3D(folder) {
 		reject
 	})
 }
+
+const repos = setInterval(() => {	if (renderer) {const c = renderer.domElement;const C = (c.offsetWidth+c.offsetHeight)/20;lgif.style.width = C+"px";lgif.style.height = C+"px";lgif.style.left = c.offsetWidth/2-C/2+"px";lgif.style.top = c.offsetHeight/2-C/2+"px"}},16)
 	
 function swapHand(h) {
 	if (canSwap) {
@@ -51,6 +53,35 @@ function swapHand(h) {
 		} else player.hands[h] = undefined
 		canSwap = true
 		iSel = undefined
+	}
+}
+
+function useHand(h) {
+	switch (player.hands[h]) {
+		case (0):
+			player.torch = !player.torch
+			break;
+		case (2):
+			if (player.water <= 75) {
+				player.hands[h] = 1
+				player.water += 25
+			}
+			break;
+		case (3):
+			if (player.food <= 90) {
+				player.hands[h] = undefined
+				player.food += 10
+			}
+			break;
+		case (4):
+			//Don't eat
+			if (player.food <= 90) {
+				player.hands[h] = undefined
+				player.food -= 25
+				player.water -= 25
+				player.health -= 25
+			}
+			break;
 	}
 }
 
@@ -89,18 +120,20 @@ let wFrames = []
 scene.fog = new THREE.Fog(0xD3D371, 100, 200);
 scene.background = new THREE.Color(0xD3D371)
 const camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 );
-let player = {"position":{"x":0,"y":0,"z":0},"rotation":{"x":0,"y":0,"z":0},"size":{"x":1,"y":5,"z":1},"bob":{"time":0,"amt":0},"health":100,"energy":100,"enexp":100,"food":100,"water":100,"sprint":{"state":false,"toggle":false,"last":-500},"sneak":{"state":false,"toggle":false,"last":-500},"hands":[],"see":new THREE.Raycaster(new THREE.Vector3(),new THREE.Vector3(0,0,-1),0,10)}
+let player = {"position":{"x":0,"y":0,"z":0},"rotation":{"x":0,"y":0,"z":0},"size":{"x":1,"y":5,"z":1},"bob":{"time":0,"amt":0},"health":100,"energy":100,"enexp":100,"food":100,"water":100,"sprint":{"state":false,"toggle":false,"last":-500},"sneak":{"state":false,"toggle":false,"last":-500},"hands":[],"see":new THREE.Raycaster(new THREE.Vector3(),new THREE.Vector3(0,0,-1),0,10),"torch":true}
 camera.rotation.order = "YXZ"
 let stick = [0,0]
 let plocation = [Infinity,Infinity]
 const dir = [[0,1],[1,0],[0,-1],[-1,0]]
 const bar = [["health","#FF0000","#AA0000"],["energy","#FFFF00","#AAAA00"],["food","#BB8800","#554400"],["water","#0000FF","#0000AA"]]
-let items = [{"folder":"Torch","scale":[0.05,0.05,0.05]},{"folder":"Empty Bottle","scale":[0.05,0.05,0.05]},{"folder":"Full Bottle","scale":[0.05,0.05,0.05]}]
+let items = [{"folder":"Torch","scale":[0.025,0.025,0.025]},{"folder":"Empty Bottle","scale":[0.05,0.05,0.05]},{"folder":"Full Bottle","scale":[0.05,0.05,0.05]},{"folder":"Mushroom","scale":[0.05,0.05,0.05]},{"folder":"Deadly Mushroom","scale":[0.05,0.05,0.05]}]
 const wireframeMat = new THREE.LineBasicMaterial({ color: 0x000000 });
 let iSel
 
 let hands = []
-if (true) {
+
+//You can block scope things manually wow
+{
 	const fe = ["L","R"]
 	fe.forEach((e) => {
 		hands.push(new Image())
@@ -201,13 +234,21 @@ for (let i=0;i<lightAm**2;i++) {
 const renderer = new THREE.WebGLRenderer();
 renderer.setSize( window.innerWidth, window.innerHeight );
 initLoad().then(() => {
-	Item(0,0,0,-10)
-	Item(2,0,0,-12)
+	/*for (let i=0;i<5;i++) {
+		Item(i,0,0,-10+-4*i)
+	}*/
+	lgif.style.visibility = "hidden"
+	clearInterval(repos)
 	renderer.setAnimationLoop( animate );
 })
 document.body.appendChild( renderer.domElement );
 console.log(renderer.domElement)
 console.log(THREE)
+
+//manual block scoping is nice
+{
+const c = renderer.domElement;const C = (c.offsetWidth+c.offsetHeight)/20;lgif.style.width = C+"px";lgif.style.height = C+"px";lgif.style.left = c.offsetWidth/2-C/2+"px";lgif.style.top = c.offsetHeight/2-C/2+"px"
+}
 
 const lookat = new THREE.Object3D();
 lookat.position.set(10, 5, 0)
@@ -447,10 +488,14 @@ addEventListener("pointerdown",function(e) {
 		} else {
 			for (let i=0;i<2;i++) {
 				if (Math.hypot(loc[0]-i*(over.width-200)-100,loc[1]-over.height/2) <= 100) {
-					swapHand(i)
+					if (loc[1] < over.height/2) swapHand(i)
+					else useHand(i)
 				}
 			}
 		}
+	} else {
+		if (e.buttons == 1) useHand(0)
+		if (e.buttons == 2) useHand(1)
 	}
 	
 	m[e.pointerId] = e
@@ -517,7 +562,7 @@ function animate( time ) {
 	
 	//debug.innerHTML = JSON.stringify(Items)
 	
-	light.visible = player.hands.includes(0)
+	light.visible = player.hands.includes(0) && player.torch
 	
 	if (k["w"]) stick[1]=-150
 	if (k["a"]) stick[0]=-150
