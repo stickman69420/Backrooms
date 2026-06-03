@@ -1,48 +1,82 @@
 import ("https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.module.js").then((THREE) => {
 import ('https://cdn.jsdelivr.net/npm/three@0.149.0/examples/jsm/loaders/GLTFLoader.js').then((GLTF) => {
 //import ('https://cdn.jsdelivr.net/npm/three@0.184.0/examples/jsm/physics/RapierPhysics.js').then((Phys) => {
-//Phys.RapierPhysics().then((physics) => {
-//import (/*"https://cdn.jsdelivr.net/npm/three@0.149.0/examples/jsm/controls/OrbitControls.js"*/"https://cdn.jsdelivr.net/npm/three@0.149.0/examples/jsm/controls/DragControls.js"/*"https://cdn.jsdelivr.net/npm/three@0.149.0/examples/jsm/controls/FirstPersonControls.js"*/).then((DC) => {
+//P	hys.RapierPhysics().then((physics) => {
+//import (/*"https://cdn.jsdelivr.net/npm/three@0.149.0/examples/jsm/controls/OrbitControls.js"*/"https://cdn.jsdelivr.net/npm/three@0.149.0/examples/jsm/controls/DragControls.js"/*"https://cdn.jsdelivr.net/npm/three@0.149.0/exa	m	ples/jsm/controls/FirstPersonControls.js"*/).then((DC) => {
 
 over.context = over.getContext("2d")
-
+	
 const chromium = navigator.userAgentData && navigator.userAgentData.brands.some(data => data.brand == 'Chromium');
-
+	
 const scene = new THREE.Scene();
 //physics.addScene(scene)
 const loader3d = new GLTF.GLTFLoader();
 function load3D(folder) {
-	//alert('./models/'+folder+'/model.gltf')
+	//al	ert('./models/'+folder+'/model.gltf')
 	return new Promise((resolve,reject) => {
 		loader3d.load('./models/'+folder+'/model.gltf', function (gltf) {
-			scene.add(gltf.scene);
+			//scene.add(gltf.scene);
 			resolve(gltf.scene)
-		}, undefined, function(error) {
+			}, undefined, function(error) {
 			alert(error.message);
 		});
 		reject
 	})
 }
+	
+function swapHand(h) {
+	if (canSwap) {
+		canSwap = false
+		const ind = Items.indexOf(iSel)
+		if (ind >= 0) Items.splice(ind,1)
+		let selected = (iSel && iSel.userData.isItem) ? iSel : undefined
+		if (player.hands[h] != undefined) Item(player.hands[h],...(selected ?? lookat).position.toArray())/*.then((it) => {
+			Items.push(it)
+		})*/
+		if ((selected ?? {"userData":{}}).userData.isItem) {
+			player.hands[h] = selected.userData.itemType
+			let iterlist = [selected]
+			while (iterlist.length > 0) {
+				if (iterlist[0].children.length > 0) iterlist.push(...iterlist[0].children)
+				else {
+					iterlist[0].traverse((wf) => {
+						wf.dispose
+						iterlist[0].remove(wf)
+					})
+				}
+				//iterlist.push(iterlist[0])
+				iterlist.splice(0,1)
+			}
+			scene.remove(selected)
+		} else player.hands[h] = undefined
+		canSwap = true
+		iSel = undefined
+	}
+}
 
-async function Item(type,x,y,z) {
+function Item(type,x,y,z) {
 	const consts = items[type]
-	let t = await load3D(consts.folder)
+	let t = consts.model.clone()
+	scene.add(t)
 	t.position.set(x,y,z)
 	t.scale.set(...consts.scale)
 	t.userData.itemType = type
 	t.userData.boundingBox = new THREE.Box3().setFromObject(t);
 	t.userData.velocity = {"x":0,"y":0,"z":0}
 	t.userData.isItem = true
-	t.traverse((y) => {
-		y.traverse((child) => {
-			if (child.isMesh) {
-				const wireframeGeom = new THREE.WireframeGeometry(child.geometry);
-				const wireframe = new THREE.LineSegments(wireframeGeom, wireframeMat);
-				child.add(wireframe);
-				wFrames.push(wireframe)
-			}
-		});
-	})
+	let iterlist = [t]
+	while (iterlist.length > 0) {
+		if (iterlist[0].children.length > 0) iterlist.push(...iterlist[0].children)
+		else {
+			iterlist[0].traverse((wf) => {
+				if (wf.userData.isWire) {
+					wFrames.push(wf)
+				}
+			})
+		}
+		iterlist.splice(0,1)
+	}
+	Items.push(t)
 	return t
 }
 
@@ -53,15 +87,62 @@ function rotDir(rot) {
 let Items = []
 let wFrames = []
 scene.fog = new THREE.Fog(0xD3D371, 100, 200);
+scene.background = new THREE.Color(0xD3D371)
 const camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 );
-let player = {"position":{"x":0,"y":0,"z":0},"rotation":{"x":0,"y":0,"z":0},"size":{"x":1,"y":5,"z":1},"bob":{"time":0,"amt":0},"health":100,"energy":100,"enexp":100,"food":100,"water":100,"sprint":{"state":false,"toggle":false,"last":-500},"sneak":{"state":false,"toggle":false,"last":-500},"hands":[],"see":new THREE.Raycaster(new THREE.Vector3(),new THREE.Vector3(0,0,-1))}
+let player = {"position":{"x":0,"y":0,"z":0},"rotation":{"x":0,"y":0,"z":0},"size":{"x":1,"y":5,"z":1},"bob":{"time":0,"amt":0},"health":100,"energy":100,"enexp":100,"food":100,"water":100,"sprint":{"state":false,"toggle":false,"last":-500},"sneak":{"state":false,"toggle":false,"last":-500},"hands":[],"see":new THREE.Raycaster(new THREE.Vector3(),new THREE.Vector3(0,0,-1),0,10)}
 camera.rotation.order = "YXZ"
 let stick = [0,0]
 let plocation = [Infinity,Infinity]
 const dir = [[0,1],[1,0],[0,-1],[-1,0]]
 const bar = [["health","#FF0000","#AA0000"],["energy","#FFFF00","#AAAA00"],["food","#BB8800","#554400"],["water","#0000FF","#0000AA"]]
-const items = [{"folder":"Torch","scale":[0.05,0.05,0.05]}]
+let items = [{"folder":"Torch","scale":[0.05,0.05,0.05]},{"folder":"Empty Bottle","scale":[0.05,0.05,0.05]},{"folder":"Full Bottle","scale":[0.05,0.05,0.05]}]
 const wireframeMat = new THREE.LineBasicMaterial({ color: 0x000000 });
+let iSel
+
+let hands = []
+if (true) {
+	const fe = ["L","R"]
+	fe.forEach((e) => {
+		hands.push(new Image())
+		hands.at(-1).src = "./images/"+e+"Hand.png"
+	})
+}
+
+async function initLoad() {
+	for (const e of items) {
+		e.image = new Image()
+		e.image.src = "./images/"+e.folder+".png";
+		let m = await load3D(e.folder);
+		let iterlist = [m]
+		while (iterlist.length > 0) {
+			if (iterlist[0].children.length > 0) iterlist.push(...iterlist[0].children)
+			else {
+				iterlist[0].traverse((wf) => {
+					if (wf.isMesh) {
+						const wireframeGeom = new THREE.WireframeGeometry(wf.geometry);
+						const wireframe = new THREE.LineSegments(wireframeGeom, wireframeMat);
+						wf.add(wireframe);
+						wireframe.userData.isWire = true
+						wFrames.push(wireframe)
+					}
+				})
+			}
+			iterlist.splice(0,1)
+		}
+			/*m.traverse((y) => {
+				y.traverse((child) => {
+					if (child.isMesh) {
+						const wireframeGeom = new THREE.WireframeGeometry(child.geometry);
+						const wireframe = new THREE.LineSegments(wireframeGeom, wireframeMat);
+						child.add(wireframe);
+						wFrames.push(wireframe)
+					}
+				});
+			})*/
+		e.model = m
+		//alert(JSON.stringify(m))
+	}
+}
 
 /*const floorPhys = new THREE.Object3D();
 scene.add(floorPhys);
@@ -77,19 +158,23 @@ physics.addHeightfield(floorPhys,2,2,[
 	t.scale.set(0.05,0.05,0.05)
 	//physics.addMesh(t,5,0.05)
 })*/
-Item(0,0,0,-10).then((it) => {
+/*.then((it) => {
 	Items.push(it)
 	//debug.innerHTML = JSON.stringify(it)
 	//alert(Object.keys(it))
-})
+})*/
 
 /*Item ids
 	0 - Torch
 */
 
 const map = {}
-const genSize = 21
-set(map,0,0,Array(4).fill(true).map(a => Math.random()<0.5))
+const genSize = 41
+let cent = Array(4).fill(true).map(a => Math.random()<0.5)
+if (JSON.stringify(cent) == "[true,true,true,true]") {
+	cent[Math.floor(Math.random()*4)] = false
+}
+set(map,0,0,cent)
 
 let lights = []
 const lightAm = 5
@@ -115,7 +200,11 @@ for (let i=0;i<lightAm**2;i++) {
 
 const renderer = new THREE.WebGLRenderer();
 renderer.setSize( window.innerWidth, window.innerHeight );
-renderer.setAnimationLoop( animate );
+initLoad().then(() => {
+	Item(0,0,0,-10)
+	Item(2,0,0,-12)
+	renderer.setAnimationLoop( animate );
+})
 document.body.appendChild( renderer.domElement );
 console.log(renderer.domElement)
 console.log(THREE)
@@ -189,6 +278,8 @@ wallTexLong.repeat.set(1.2,1)
 const roofMatCube = new THREE.MeshLambertMaterial( { color: 0xD3D371 } );
 let materialsCube = [wallMatShort,wallMatShort,roofMatCube,roofMatCube,wallMatLong,wallMatLong]
 let cubes = []
+
+let canSwap = true
 
 function wall(x,y,w,h) {
 	const loaderw = new THREE.TextureLoader();
@@ -288,6 +379,10 @@ function key(e) {
 		if (e.key == "w" || e.key == "s") stick[1] = 0
 		if (e.key == "a" || e.key == "d") stick[0] = 0
 	}
+	if (e.type == "keydown") {
+		if (e.key == "q") swapHand(0)
+		if (e.key == "e") swapHand(0)
+	}
 	/*if (e.key.toLowerCase().includes("shift")) {
 		
 	}*/
@@ -342,12 +437,19 @@ addEventListener("pointerdown",function(e) {
 			}// else {
 				if (player.sneak.toggle) {
 					player.sneak.state = !player.sneak.state
+					//swapHand(0)
 				} else {
 					player.sneak.state = true
 					e.sneak = true
 				}
 			//}
 			player.sneak.last = e.timeStamp
+		} else {
+			for (let i=0;i<2;i++) {
+				if (Math.hypot(loc[0]-i*(over.width-200)-100,loc[1]-over.height/2) <= 100) {
+					swapHand(i)
+				}
+			}
 		}
 	}
 	
@@ -412,6 +514,8 @@ function animate( time ) {
   //cube.rotation.y = time / 1000;}
 	/*ceil.rotation.set(time/1000,0,0)
 	debug.innerHTML = time/1000*/
+	
+	//debug.innerHTML = JSON.stringify(Items)
 	
 	light.visible = player.hands.includes(0)
 	
@@ -485,10 +589,71 @@ function animate( time ) {
 	
 	/*camera.position.x += stick[1]/150
 	camera.position.z += stick[0]/150*/
+	
+	Items.forEach((e) => {
+		e.userData.velocity.y -= 9.81/60
+		for (const [key,value] of Object.entries(e.userData.velocity)) {
+			e.position[key] += value
+		}
+		e.position.y = Math.max(e.position.y,-5+(e.userData.boundingBox.max.y-e.userData.boundingBox.min.y)/2)
+		if (e.position.y == -5+(e.userData.boundingBox.max.y-e.userData.boundingBox.min.y)/2) {
+			e.userData.velocity.y = 0
+		}
+	})
+	
+	//debug.innerHTML = JSON.stringify(Items.map(i => i.userData))
+	
+	player.see.setFromCamera({"x":0,"y":0},camera)
+	//debug.innerHTML = JSON.stringify(player.see.intersectObjects(Items))
+	const rayRes = player.see.intersectObjects(Items.concat(cubes).concat([ceil,floor]))
+	//debug.innerHTML += JSON.stringify(rayRes.map(i => i.object.parent.parent.userData))
+	/*while (wFrames.length > 0) {
+		let wF = wFrames.pop()
+		wF.geometry.dispose()
+		wF.material.dispose()
+		wF.parent.remove(wF)
+	}*/
+	wFrames.forEach((e) => {
+		e.visible = false
+	})
+	iSel = undefined
+	if (rayRes[0]) {
+		let par = rayRes[0].object
+		let parInd = 0
+		
+		while (par.parent && par.parent.parent) { //prevent it from always selecting the scene
+			par = par.parent
+			parInd++
+		}
+		
+		iSel = par
+		
+		if (par.userData.isItem) {
+			let iterlist = [par]
+			while (iterlist.length > 0) {
+				if (iterlist[0].children.length > 0) iterlist.push(...iterlist[0].children)
+				else {
+					iterlist[0].traverse((wf) => {
+						wf.visible = true
+					})
+				}
+				iterlist.splice(0,1)
+			}
+			/*par.traverse((y) => {
+				y.traverse((child) => {
+					child.traverse((wf) => {
+						wf.visible = true
+					})
+				});
+			});*/
+		}
+	}
+	
 	light.position.set(player.position.x,player.position.y+player.bob.amt/2,player.position.z)
 	const off = new THREE.Vector3()
 	camera.getWorldDirection(off)
-	lookat.position.set(player.position.x+off.x,player.position.y+off.y+player.bob.amt/2,player.position.z+off.z)
+	const dis = Math.min((rayRes[0] ?? {"distance":1}).distance,5)
+	lookat.position.set(player.position.x+off.x*dis,player.position.y+off.y*dis+player.bob.amt/2,player.position.z+off.z*dis)
 	if (Math.floor(player.position.x/10) != plocation[0] || Math.floor(player.position.z/10) != plocation[1]) {
 		plocation = [Math.floor(player.position.x/10),Math.floor(player.position.z/10)]
 		//debug.innerHTML = JSON.stringify(plocation)
@@ -547,7 +712,7 @@ function animate( time ) {
 				if ((value2 ?? []).includes(false)) locs.push([key,key2])
 			}
 		}
-		for (let i=0;i<nWall.length/4;i++) {
+		for (let i=0;i<nWall.length/2;i++) {
 			const locind = Math.floor(Math.random()*nWall.length)
 			const cWall = nWall[locind]
 			const cLoc = [cWall[0],cWall[1]]
@@ -582,6 +747,13 @@ function animate( time ) {
 				}
 				//normed.at(-1).push(+(value2 ?? 0))
 			}
+			/*debug.innerHTML = JSON.stringify(map)
+			//{"0":{"0":[true,true,true,true]},"1":{},"2":{},"3":{},"4":{},"5":{},"6":{},"7":{},"8":{},"9":{},"10":{},"11":{},"12":{},"13":{},"14":{},"15":{},"16":{},"17":{},"18":{},"19":{},"20":{},"-20":{},"-19":{},"-18":{},"-17":{},"-16":{},"-15":{},"-14":{},"-13":{},"-12":{},"-11":{},"-10":{},"-9":{},"-8":{},"-7":{},"-6":{},"-5":{},"-4":{},"-3":{},"-2":{},"-1":{}}
+			if (JSON.stringify(map) == '{"0":{"0":[true,true,true,true]},"1":{},"2":{},"3":{},"4":{},"5":{},"6":{},"7":{},"8":{},"9":{},"10":{},"-10":{},"-9":{},"-8":{},"-7":{},"-6":{},"-5":{},"-4":{},"-3":{},"-2":{},"-1":{}}') {
+				map = {}
+				plocation = [Infinity, Infinity]
+				alert("weew")
+			}*/
 		}
 		//const newgreed = greedyMergeBest(normed)
 		//if (confirm("do you consent?\n"+newgreed.rectangles.length)) {
@@ -613,62 +785,6 @@ function animate( time ) {
 	player.bob.amt = Math.cos(player.bob.time/Math.PI/10)/3
 	camera.position.set(player.position.x,player.position.y+player.bob.amt,player.position.z)
 	camera.rotation.set(player.rotation.x,player.rotation.y,player.rotation.z)
-	
-	Items.forEach((e) => {
-		e.userData.velocity.y -= 9.81/60
-		for (const [key,value] of Object.entries(e.userData.velocity)) {
-			e.position[key] += value
-		}
-		e.position.y = Math.max(e.position.y,-5+(e.userData.boundingBox.max.y-e.userData.boundingBox.min.y)/2)
-		if (e.position.y == -5+(e.userData.boundingBox.max.y-e.userData.boundingBox.min.y)/2) {
-			e.userData.velocity.y = 0
-		}
-	})
-	
-	//debug.innerHTML = JSON.stringify(Items.map(i => i.userData))
-	
-	player.see.setFromCamera({"x":0,"y":0},camera)
-	//debug.innerHTML = JSON.stringify(player.see.intersectObjects(Items))
-	const rayRes = player.see.intersectObjects(Items.concat(cubes))
-	//debug.innerHTML += JSON.stringify(rayRes.map(i => i.object.parent.parent.userData))
-	/*while (wFrames.length > 0) {
-		let wF = wFrames.pop()
-		wF.geometry.dispose()
-		wF.material.dispose()
-		wF.parent.remove(wF)
-	}*/
-	wFrames.forEach((e) => {
-		e.visible = false
-	})
-	if (rayRes[0]) {
-		let par = rayRes[0].object
-		let parInd = 0
-		
-		while (par.parent.parent) { //prevent it from always selecting the scene
-			par = par.parent
-			parInd++
-		}
-		
-		if (par.userData.isItem) {
-			let iterlist = [par]
-			while (iterlist.length > 0) {
-				if (iterlist[0].children.length > 0) iterlist.push(...iterlist[0].children)
-				else {
-					iterlist[0].traverse((wf) => {
-						wf.visible = true
-					})
-				}
-				iterlist.splice(0,1)
-			}
-			/*par.traverse((y) => {
-				y.traverse((child) => {
-					child.traverse((wf) => {
-						wf.visible = true
-					})
-				});
-			});*/
-		}
-	}
 	
 	renderer.render( scene, camera );
 	/*const colled = (collAll() ?? {})
@@ -704,8 +820,10 @@ function animate( time ) {
 		over.context.arc(150, 850, player.enexp/2, 0, 2 * Math.PI);
 		over.context.stroke();
 		
+		over.context.strokeStyle = "#000000"
 		over.context.fillStyle = player.sprint.state ? "#AA7777DD" : "#DDAAAAAA"
 		over.context.fillRect(over.width-275,850,250,100)
+		if (player.sprint.toggle) over.context.strokeRect(over.width-275,850,250,100)
 		over.context.font = "95px Arial"
 		over.context.fillStyle = "#000000"
 		over.context.textBaseline = "bottom"
@@ -714,9 +832,14 @@ function animate( time ) {
 		
 		over.context.fillStyle = player.sneak.state ? "#7777AADD" : "#AAAADDAA"
 		over.context.fillRect(over.width-275,750,250,100)
+		if (player.sneak.toggle) over.context.strokeRect(over.width-275,750,250,100)
 		over.context.font = "90px Arial"
 		over.context.fillStyle = "#000000"
 		over.context.fillText("Sneak",over.width-150,850)
+		
+		hands.forEach((e,ee) => {
+			over.context.drawImage(e,ee*(over.width-200),over.height/2-100,200,200)
+		})
 	}
 	over.context.lineWidth = 2
 	bar.forEach((e,i) => {
@@ -747,6 +870,13 @@ function animate( time ) {
 		over.context.lineTo(30+3*player.enexp,50)
 		over.context.stroke()
 	}
+	over.context.fillStyle = "#000000"
+	for (let i=0;i<4;i++) {
+		over.context.fillRect(over.width/2+[-2,15,2,-15][i]*(iSel && iSel.userData.isItem ? 2 : 1),over.height/2+[15,-2,-15,2][i]*(iSel && iSel.userData.isItem ? 2 : 1),[4,50,-4,-50][i],[50,4,-50,-4][i])
+	}
+	for (let i=0;i<2;i++) {
+		if (player.hands[i] != undefined) over.context.drawImage(items[player.hands[i]].image,over.width/2+54*i-52,over.height/2+2,50,50)
+	}
 }
 })
 .catch((err) => {
@@ -755,5 +885,5 @@ function animate( time ) {
 }).catch((err) => {
 	alert(err.message)
 })
-/*})
-})*/
+//})
+//})
